@@ -1,0 +1,318 @@
+{
+  "entities": {
+    "Construction": {
+      "title": "Construction",
+      "description": "Cadastro de obra residencial ou comercial com orçamento, áreas, links de fotos e URLs de modelos 3D (fotogrametria/Luma AI).",
+      "type": "object",
+      "properties": {
+        "nome": {
+          "type": "string",
+          "description": "Nome identificador da obra (ex: Residência Wilson - Lote 14)",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "endereco": {
+          "type": "string",
+          "description": "Endereço completo do terreno ou construção",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "cliente": {
+          "type": "string",
+          "description": "Nome do proprietário ou cliente responsável pela obra",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "status": {
+          "type": "string",
+          "description": "Etapa atual da construção",
+          "enum": [
+            "planejamento",
+            "em_andamento",
+            "acabamento",
+            "pausada",
+            "concluida"
+          ]
+        },
+        "orcamentoTotal": {
+          "type": "number",
+          "description": "Orçamento total previsto em Reais (BRL)"
+        },
+        "areaTerreno": {
+          "type": "number",
+          "description": "Área total do terreno em metros quadrados (m²)"
+        },
+        "areaConstruida": {
+          "type": "number",
+          "description": "Área construída prevista ou executada em metros quadrados (m²)"
+        },
+        "dataInicio": {
+          "type": "string",
+          "description": "Data de início da obra no formato ISO YYYY-MM-DD",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "previsaoTermino": {
+          "type": "string",
+          "description": "Data prevista de conclusão no formato ISO YYYY-MM-DD ou vazio",
+          "maxLength": 10,
+          "pattern": "^(\\d{4}-\\d{2}-\\d{2})?$"
+        },
+        "coverPhotoUrl": {
+          "type": "string",
+          "description": "URL da foto principal da casa (Firebase Storage ou asset)",
+          "maxLength": 2048
+        },
+        "terrainPhotoUrl": {
+          "type": "string",
+          "description": "URL da foto do terreno inicial (Firebase Storage ou asset)",
+          "maxLength": 2048
+        },
+        "model3dExteriorUrl": {
+          "type": "string",
+          "description": "URL de modelo 3D exterior (.glb/.gltf) gerado por fotogrametria (ex: Luma AI)",
+          "maxLength": 2048
+        },
+        "model3dInteriorUrl": {
+          "type": "string",
+          "description": "URL de modelo 3D interior (.glb/.gltf) gerado por fotogrametria (ex: Luma AI)",
+          "maxLength": 2048
+        },
+        "observacoes": {
+          "type": "string",
+          "description": "Notas técnicas e observações gerais da obra",
+          "maxLength": 1000
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID do usuário autenticado proprietário do registro",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na criação"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na última atualização"
+        }
+      },
+      "required": [
+        "nome",
+        "endereco",
+        "cliente",
+        "status",
+        "orcamentoTotal",
+        "areaTerreno",
+        "areaConstruida",
+        "dataInicio",
+        "ownerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ConstructionPhoto": {
+      "title": "ConstructionPhoto",
+      "description": "Registro fotográfico da evolução da obra (terreno, estrutura, fachada, interior, acabamento) armazenado em subcoleção.",
+      "type": "object",
+      "properties": {
+        "constructionId": {
+          "type": "string",
+          "description": "ID da obra pai",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "tipo": {
+          "type": "string",
+          "description": "Categoria visual da fotografia",
+          "enum": [
+            "terreno",
+            "estrutura",
+            "fachada",
+            "interior",
+            "acabamento"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "description": "URL de download da imagem no Firebase Storage ou asset estático",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "legenda": {
+          "type": "string",
+          "description": "Descrição curta da foto",
+          "maxLength": 200
+        },
+        "dataFoto": {
+          "type": "string",
+          "description": "Data do registro fotográfico (YYYY-MM-DD)",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "storagePath": {
+          "type": "string",
+          "description": "Caminho do objeto no Firebase Storage para gestão de exclusão",
+          "maxLength": 512
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID do usuário proprietário",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na criação"
+        }
+      },
+      "required": [
+        "constructionId",
+        "tipo",
+        "url",
+        "legenda",
+        "dataFoto",
+        "ownerId",
+        "createdAt"
+      ]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Lançamento contábil de despesa de obra compatível com a planilha Contabilidade Construção WILSON, com anexo de Nota Fiscal.",
+      "type": "object",
+      "properties": {
+        "constructionId": {
+          "type": "string",
+          "description": "ID da obra associada à despesa",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "categoria": {
+          "type": "string",
+          "description": "Categoria contábil da despesa de construção",
+          "enum": [
+            "Despesas Iniciais",
+            "Material",
+            "Mão de Obra - Pedreiro",
+            "Mão de Obra - Encanador",
+            "Mão de Obra - Eletricista",
+            "Mão de Obra - Ar Condicionado",
+            "Mão de Obra - Pisos"
+          ]
+        },
+        "descricao": {
+          "type": "string",
+          "description": "Descrição detalhada do material ou serviço contratado",
+          "minLength": 2,
+          "maxLength": 240
+        },
+        "valor": {
+          "type": "number",
+          "description": "Valor da despesa em Reais (BRL)"
+        },
+        "data": {
+          "type": "string",
+          "description": "Data do pagamento ou emissão da despesa (YYYY-MM-DD)",
+          "maxLength": 10,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "fornecedor": {
+          "type": "string",
+          "description": "Local da compra, loja ou empresa prestadora de serviço",
+          "minLength": 2,
+          "maxLength": 160
+        },
+        "formaPagamento": {
+          "type": "string",
+          "description": "Meio de pagamento utilizado",
+          "enum": [
+            "PIX",
+            "Cartão de Crédito",
+            "Cartão de Débito",
+            "Boleto",
+            "Transferência/TED",
+            "Dinheiro",
+            "Cheque"
+          ]
+        },
+        "notaFiscalUrl": {
+          "type": "string",
+          "description": "URL do arquivo da Nota Fiscal (PDF/Imagem) no Firebase Storage",
+          "maxLength": 2048
+        },
+        "notaFiscalNome": {
+          "type": "string",
+          "description": "Nome original do arquivo de Nota Fiscal anexado",
+          "maxLength": 200
+        },
+        "notaFiscalNumero": {
+          "type": "string",
+          "description": "Número ou chave resumida da Nota Fiscal / Recibo",
+          "maxLength": 60
+        },
+        "notaFiscalStoragePath": {
+          "type": "string",
+          "description": "Caminho do anexo da Nota Fiscal no Firebase Storage",
+          "maxLength": 512
+        },
+        "observacoes": {
+          "type": "string",
+          "description": "Observações adicionais do lançamento financeiro",
+          "maxLength": 500
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID do usuário proprietário do lançamento",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na criação"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na última atualização"
+        }
+      },
+      "required": [
+        "constructionId",
+        "categoria",
+        "descricao",
+        "valor",
+        "data",
+        "fornecedor",
+        "formaPagamento",
+        "ownerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/constructions/{constructionId}": {
+      "schema": {
+        "$ref": "#/entities/Construction"
+      },
+      "description": "Coleção principal de obras e construções gerenciadas por cada usuário."
+    },
+    "/constructions/{constructionId}/photos/{photoId}": {
+      "schema": {
+        "$ref": "#/entities/ConstructionPhoto"
+      },
+      "description": "Subcoleção escalável de fotos do terreno, estrutura, fachada e interior vinculadas à obra pai."
+    },
+    "/expenses/{expenseId}": {
+      "schema": {
+        "$ref": "#/entities/Expense"
+      },
+      "description": "Coleção raiz de lançamentos financeiros (custos, materiais, mão de obra e notas fiscais) otimizada para filtragem cruzada por período de datas e obra."
+    }
+  }
+}

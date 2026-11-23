@@ -1,0 +1,6 @@
+{
+  "name": "ObraControl — Gestão de Obras e Contabilidade",
+  "description": "Sistema completo de gestão de obras, controle financeiro contábil, upload de notas fiscais e visualização 3D interativa com suporte a fotogrametria.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

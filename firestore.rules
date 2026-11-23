@@ -1,0 +1,372 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Global Hardened Primitives
+    // =========================================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidDateString(val) {
+      return val is string && val.size() == 10 && val.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function isValidOptionalDateString(val) {
+      return val is string && val.size() <= 10 && (val == '' || val.matches('^\\d{4}-\\d{2}-\\d{2}$'));
+    }
+
+    function isValidOptionalUrl(val) {
+      return val is string && val.size() <= 2048;
+    }
+
+    function ownsConstruction(constructionId) {
+      return isValidId(constructionId)
+        && exists(/databases/$(database)/documents/constructions/$(constructionId))
+        && get(/databases/$(database)/documents/constructions/$(constructionId)).data.ownerId == request.auth.uid;
+    }
+
+    // =========================================================================
+    // Entity Validation Blueprints (Synchronized with firebase-blueprint.json)
+    // =========================================================================
+
+    function isValidConstructionStatus(status) {
+      return status in ['planejamento', 'em_andamento', 'acabamento', 'pausada', 'concluida'];
+    }
+
+    function isValidConstruction(data) {
+      return data.keys().hasAll([
+          'nome',
+          'endereco',
+          'cliente',
+          'status',
+          'orcamentoTotal',
+          'areaTerreno',
+          'areaConstruida',
+          'dataInicio',
+          'ownerId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'nome',
+          'endereco',
+          'cliente',
+          'status',
+          'orcamentoTotal',
+          'areaTerreno',
+          'areaConstruida',
+          'dataInicio',
+          'previsaoTermino',
+          'coverPhotoUrl',
+          'terrainPhotoUrl',
+          'model3dExteriorUrl',
+          'model3dInteriorUrl',
+          'observacoes',
+          'ownerId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.nome is string && data.nome.size() >= 2 && data.nome.size() <= 120
+        && data.endereco is string && data.endereco.size() >= 3 && data.endereco.size() <= 200
+        && data.cliente is string && data.cliente.size() >= 2 && data.cliente.size() <= 100
+        && isValidConstructionStatus(data.status)
+        && data.orcamentoTotal is number && data.orcamentoTotal > 0 && data.orcamentoTotal <= 1000000000
+        && data.areaTerreno is number && data.areaTerreno >= 0 && data.areaTerreno <= 1000000
+        && data.areaConstruida is number && data.areaConstruida >= 0 && data.areaConstruida <= 1000000
+        && isValidDateString(data.dataInicio)
+        && (!('previsaoTermino' in data) || isValidOptionalDateString(data.previsaoTermino))
+        && (!('coverPhotoUrl' in data) || isValidOptionalUrl(data.coverPhotoUrl))
+        && (!('terrainPhotoUrl' in data) || isValidOptionalUrl(data.terrainPhotoUrl))
+        && (!('model3dExteriorUrl' in data) || isValidOptionalUrl(data.model3dExteriorUrl))
+        && (!('model3dInteriorUrl' in data) || isValidOptionalUrl(data.model3dInteriorUrl))
+        && (!('observacoes' in data) || (data.observacoes is string && data.observacoes.size() <= 1000))
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPhotoType(tipo) {
+      return tipo in ['terreno', 'estrutura', 'fachada', 'interior', 'acabamento'];
+    }
+
+    function isValidConstructionPhoto(data, parentConstructionId) {
+      return data.keys().hasAll([
+          'constructionId',
+          'tipo',
+          'url',
+          'legenda',
+          'dataFoto',
+          'ownerId',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'constructionId',
+          'tipo',
+          'url',
+          'legenda',
+          'dataFoto',
+          'storagePath',
+          'ownerId',
+          'createdAt'
+        ])
+        && isValidId(data.constructionId)
+        && data.constructionId == parentConstructionId
+        && isValidPhotoType(data.tipo)
+        && data.url is string && data.url.size() >= 1 && data.url.size() <= 2048
+        && data.legenda is string && data.legenda.size() <= 200
+        && isValidDateString(data.dataFoto)
+        && (!('storagePath' in data) || (data.storagePath is string && data.storagePath.size() <= 512))
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.createdAt is timestamp;
+    }
+
+    function isValidExpenseCategory(categoria) {
+      return categoria in [
+        'Despesas Iniciais',
+        'Material',
+        'Mão de Obra - Pedreiro',
+        'Mão de Obra - Encanador',
+        'Mão de Obra - Eletricista',
+        'Mão de Obra - Ar Condicionado',
+        'Mão de Obra - Pisos'
+      ];
+    }
+
+    function isValidPaymentMethod(forma) {
+      return forma in [
+        'PIX',
+        'Cartão de Crédito',
+        'Cartão de Débito',
+        'Boleto',
+        'Transferência/TED',
+        'Dinheiro',
+        'Cheque'
+      ];
+    }
+
+    function isValidExpense(data) {
+      return data.keys().hasAll([
+          'constructionId',
+          'categoria',
+          'descricao',
+          'valor',
+          'data',
+          'fornecedor',
+          'formaPagamento',
+          'ownerId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'constructionId',
+          'categoria',
+          'descricao',
+          'valor',
+          'data',
+          'fornecedor',
+          'formaPagamento',
+          'notaFiscalUrl',
+          'notaFiscalNome',
+          'notaFiscalNumero',
+          'notaFiscalStoragePath',
+          'observacoes',
+          'ownerId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.constructionId)
+        && isValidExpenseCategory(data.categoria)
+        && data.descricao is string && data.descricao.size() >= 2 && data.descricao.size() <= 240
+        && data.valor is number && data.valor > 0 && data.valor <= 100000000
+        && isValidDateString(data.data)
+        && data.fornecedor is string && data.fornecedor.size() >= 2 && data.fornecedor.size() <= 160
+        && isValidPaymentMethod(data.formaPagamento)
+        && (!('notaFiscalUrl' in data) || isValidOptionalUrl(data.notaFiscalUrl))
+        && (!('notaFiscalNome' in data) || (data.notaFiscalNome is string && data.notaFiscalNome.size() <= 200))
+        && (!('notaFiscalNumero' in data) || (data.notaFiscalNumero is string && data.notaFiscalNumero.size() <= 60))
+        && (!('notaFiscalStoragePath' in data) || (data.notaFiscalStoragePath is string && data.notaFiscalStoragePath.size() <= 512))
+        && (!('observacoes' in data) || (data.observacoes is string && data.observacoes.size() <= 500))
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // =========================================================================
+    // Collection: /constructions/{constructionId}
+    // =========================================================================
+
+    match /constructions/{constructionId} {
+      allow get: if isSignedIn()
+        && isValidId(constructionId)
+        && existing().ownerId == request.auth.uid;
+
+      allow list: if isSignedIn()
+        && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isVerifiedUser()
+        && isValidId(constructionId)
+        && isValidConstruction(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(constructionId)
+        && isValidConstruction(incoming())
+        && existing().ownerId == request.auth.uid
+        && existing().status != 'concluida'
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Update construction details, budget, and dates
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'nome',
+            'endereco',
+            'cliente',
+            'status',
+            'orcamentoTotal',
+            'areaTerreno',
+            'areaConstruida',
+            'dataInicio',
+            'previsaoTermino',
+            'observacoes',
+            'updatedAt'
+          ]) ||
+          // Action 2: Update construction photos and 3D photogrammetry URLs
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'coverPhotoUrl',
+            'terrainPhotoUrl',
+            'model3dExteriorUrl',
+            'model3dInteriorUrl',
+            'updatedAt'
+          ])
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidId(constructionId)
+        && existing().ownerId == request.auth.uid;
+
+      // =======================================================================
+      // Subcollection: /constructions/{constructionId}/photos/{photoId}
+      // =======================================================================
+
+      match /photos/{photoId} {
+        allow get: if isSignedIn()
+          && isValidId(constructionId)
+          && isValidId(photoId)
+          && existing().ownerId == request.auth.uid
+          && ownsConstruction(constructionId);
+
+        allow list: if isSignedIn()
+          && resource.data.ownerId == request.auth.uid
+          && resource.data.constructionId == constructionId;
+
+        allow create: if isVerifiedUser()
+          && isValidId(constructionId)
+          && isValidId(photoId)
+          && isValidConstructionPhoto(incoming(), constructionId)
+          && incoming().createdAt == request.time
+          && ownsConstruction(constructionId);
+
+        allow update: if isVerifiedUser()
+          && isValidId(constructionId)
+          && isValidId(photoId)
+          && isValidConstructionPhoto(incoming(), constructionId)
+          && existing().ownerId == request.auth.uid
+          && incoming().ownerId == existing().ownerId
+          && incoming().constructionId == existing().constructionId
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['legenda', 'tipo', 'dataFoto'])
+          && ownsConstruction(constructionId);
+
+        allow delete: if isVerifiedUser()
+          && isValidId(constructionId)
+          && isValidId(photoId)
+          && existing().ownerId == request.auth.uid
+          && ownsConstruction(constructionId);
+      }
+    }
+
+    // =========================================================================
+    // Collection: /expenses/{expenseId}
+    // =========================================================================
+
+    match /expenses/{expenseId} {
+      allow get: if isSignedIn()
+        && isValidId(expenseId)
+        && existing().ownerId == request.auth.uid;
+
+      allow list: if isSignedIn()
+        && resource.data.ownerId == request.auth.uid;
+
+      allow create: if isVerifiedUser()
+        && isValidId(expenseId)
+        && isValidExpense(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && ownsConstruction(incoming().constructionId);
+
+      allow update: if isVerifiedUser()
+        && isValidId(expenseId)
+        && isValidExpense(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().constructionId == existing().constructionId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Edit financial ledger entry details
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'categoria',
+            'descricao',
+            'valor',
+            'data',
+            'fornecedor',
+            'formaPagamento',
+            'observacoes',
+            'updatedAt'
+          ]) ||
+          // Action 2: Attach or update invoice (Nota Fiscal) document metadata
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'notaFiscalUrl',
+            'notaFiscalNome',
+            'notaFiscalNumero',
+            'notaFiscalStoragePath',
+            'updatedAt'
+          ])
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidId(expenseId)
+        && existing().ownerId == request.auth.uid;
+    }
+  }
+}
